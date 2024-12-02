@@ -158,7 +158,7 @@ while trial < trials:
                 # Draw and display the corners
                 img = cv2.drawChessboardCorners(img, CHECKERBOARD, corners, ret)
              
-            plt.imshow(img),plt.savefig(r"C:\Users\t4mar\Documents\Processing\Lab9\data\Dots.png")
+            plt.imshow(img),plt.savefig(r"C:\Users\t4mar\Documents\ENME351\Processing\Lab9\data\Dots.png")
         
      
      
