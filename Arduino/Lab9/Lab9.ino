@@ -68,8 +68,9 @@ void loop() {
   // put your main code here, to run repeatedly:
   // Debug code
   // debug_nav_code();
-  //debug_serial_code();
-  //setServo(0);
+  // debug_serial_code();
+  // setServo(0);
+  // debug_movement();
 
   // Implement basic version of optimization/gradient decent in 2D space
   // where the 2D space is that of a linear degree of freedom (robot moves forward or backward)
@@ -329,11 +330,13 @@ float getMinDistFront() {
       min_dist = distArr[i];
     }
   }
+  // DEBUG
+  //Serial.println(min_dist);
   return min_dist;
 }
 
 float getMinDistBack() {
-  float distArr[2] = { medianDist(frontLeft_Trig, frontLeft_Echo, dist_num_readings), medianDist(frontRight_Trig, frontRight_Echo, dist_num_readings) };
+  float distArr[2] = { medianDist(backLeft_Trig, backLeft_Echo, dist_num_readings), medianDist(backRight_Trig, backRight_Echo, dist_num_readings) };
 
   float min_dist = 99999.0;
   for (int i = 0; i < 2; i++) {
@@ -398,6 +401,26 @@ void debug_serial_code() {
     Serial.println("Unavailable");
   }
   */
+}
+
+void debug_movement(){
+  while(1){
+    backward(2000);
+    delay(1000);
+
+    /*
+    digitalWrite(ENA1, HIGH);
+    digitalWrite(ENA2, LOW);
+    digitalWrite(ENA3, HIGH);
+    digitalWrite(ENA4, LOW);
+    */
+    //digitalWrite(2, HIGH);
+    //digitalWrite(3, HIGH);
+    //digitalWrite(4, HIGH);
+    //digitalWrite(5, HIGH);
+
+  }
+  
 }
 
 void get_Vals_serial() {
