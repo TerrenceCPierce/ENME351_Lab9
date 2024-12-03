@@ -34,9 +34,11 @@ int backLeft_Trig = 11;
 int backRight_Echo = 12;
 int backRight_Trig = 13;
 
+// Initialize variables for keeping track of time
 unsigned long oldTime = 0;
 unsigned int oldTime_move = 0;
 
+// Period of servo
 int tPeriod = 20000;
 
 void setup() {
@@ -45,6 +47,7 @@ void setup() {
 
 
   // Initialize pins for motor, servo, and ultrasonics
+  // Ultrasonics
   pinMode(frontLeft_Echo, INPUT);
   pinMode(frontLeft_Trig, OUTPUT);
   pinMode(frontRight_Echo, INPUT);
@@ -54,16 +57,18 @@ void setup() {
   pinMode(backRight_Echo, INPUT);
   pinMode(backRight_Trig, OUTPUT);
 
+  // Motors
   pinMode(ENA1, OUTPUT);
   pinMode(ENA2, OUTPUT);
   pinMode(ENA3, OUTPUT);
   pinMode(ENA4, OUTPUT);
 
+  // Servo
   pinMode(Servo_Pin, OUTPUT);
 
   //get Initial Time
   oldTime = micros();
-  setServo(0);
+  setServo(0);  // Start servo at angle = 0 degrees
 }
 
 void loop() {
@@ -117,14 +122,18 @@ void loop() {
 
   // Thus, to further showcase the Processing digital twin (non-normal possibilities) and robustness, I will go for the first method
 
+  // While conditions are not met
   while ((distance == -1) || abs(roll) > roll_threshold) {
     // Indexed based on order given above, Stationary angle up: 1, Stationary angle steady: 2, etc.
     float rollArr[9];
-    float minRoll = 999;
-    int minIdx = -1;
+    float minRoll = 999;  //initialize a large value to soon be overwritten
+    int minIdx = -1;      // set index as -1 so I know if none of them found an image
+
+    // Initialize two additional angles to test
     int angle_down = servo_angle - optim_angle_step;
     int angle_up = servo_angle + optim_angle_step;
 
+    // interate through the 9 possibilities
     for (int i = 0; i < 9; i += 3) {
       // NOTE: moving on a time basis is not an accurate way of moving the same amount each time due to a variety of factors
       // including battery charge and environmental conditions, but this works for what it needs to do
@@ -141,10 +150,10 @@ void loop() {
       else {
         setServo(angle_up);
         get_Vals_serial();
-        if (distance == -1) {  //if no longer able to see the target
+        if (distance == -1) {  // if no longer able to see the target
           rollArr[i] = 999;
         } else {
-          if (abs(roll) < minRoll) {
+          if (abs(roll) < minRoll) {  // if the new roll is less than the previous minimum, update variables
             minRoll = abs(roll);
             minIdx = i;
             rollArr[i] = abs(roll);
@@ -158,7 +167,7 @@ void loop() {
       if (distance == -1) {  //if no longer able to see the target
         rollArr[i + 1] = 999;
       } else {
-        if (abs(roll) < minRoll) {
+        if (abs(roll) < minRoll) {  // if the new roll is less than the previous minimum, update variables
           minRoll = abs(roll);
           minIdx = i + 1;
           rollArr[i + 1] = abs(roll);
@@ -174,7 +183,7 @@ void loop() {
         if (distance == -1) {  //if no longer able to see the target
           rollArr[i + 2] = 999;
         } else {
-          if (abs(roll) < minRoll) {
+          if (abs(roll) < minRoll) {  // if the new roll is less than the previous minimum, update variables
             minRoll = abs(roll);
             minIdx = i + 2;
             rollArr[i + 2] = abs(roll);
@@ -199,7 +208,7 @@ void loop() {
     }
 
     if (minIdx == -1) {
-      findChessboard();  // None of the combos found the chessboard
+      findChessboard();  // None of the combos found the chessboard, so need to set angle again
     }
 
     // After finding best angle, make sure servo_angle is within bounds
@@ -210,30 +219,32 @@ void loop() {
       servo_angle = 90;
     }
 
-    setServo(servo_angle);
-    get_Vals_serial();
+    setServo(servo_angle);  // set angle before next iteration
+    get_Vals_serial();      // set new values based on new position
 
-    // Repears until breaks out of while loop (close enough to normal to the chessboard)
+    // Repeats until breaks out of while loop (close enough to normal to the chessboard)
   }
 
-  // temporarily indicate it got within threshold
+  // get the mode from the potentiometer
   mode = meanAnalog_mode(pot_Pin, 5, 2);
+
+  // temporarily indicate it got within threshold
   setServo(servo_angle);
-  while(mode == 0) {
-    mode = meanAnalog_mode(pot_Pin, 5, 2);
+  while (mode == 0) {
+    mode = meanAnalog_mode(pot_Pin, 5, 2);  // stays put until the user changes the potentiometer
   }
 
   // If optimized servo angle is below a threshold, move forward until distance threshold
   // This means there are infinite solutions so it makes sense to get as close as possible
-  if(servo_angle < 15){
-    forward(9999); //it will stop once it detects the chessboard
+  if (servo_angle < 15) {
+    forward(9999);  //it will stop once it detects the chessboard
   }
-  while(mode == 1){
-    mode = meanAnalog_mode(pot_Pin, 5, 2);
+  while (mode == 1) {
+    mode = meanAnalog_mode(pot_Pin, 5, 2);  // mostly here for symmetry purposes and in case I add other modes in the future
   }
 
   // This can be commented out to run continously, but wanted to have it stop for the demo
-  while(1){}
+  while (1) {}
 
 
 
@@ -297,10 +308,13 @@ float readDist(int trigPin, int echoPin) {
 }
 
 float medianDist(int trigPin, int echoPin, int numReadings) {
+  // Gets number of distance readings equal to numReadings
   float* distArr = new float[numReadings];
   for (int i = 0; i < numReadings; i++) {
     distArr[i] = readDist(trigPin, echoPin);
   }
+
+  // Gets median of the array
   float median = findMedian(distArr, numReadings);
   delete distArr;  // save memory, prevent leaks
   return median;
@@ -321,6 +335,7 @@ float findMedian(float arr[], int size) {
     }
   }
 
+  // Looks at middle value depending on odd vs even
   if (size % (2)) {
     return (arr[(int)(size / 2)] + arr[(int)(size / 2 + 1)]) / 2;
   } else {
@@ -329,9 +344,10 @@ float findMedian(float arr[], int size) {
 }
 
 float getMinDist() {
+  // gets minimum distance of all 4 ultrasonics
   float distArr[4] = { medianDist(frontLeft_Trig, frontLeft_Echo, dist_num_readings), medianDist(frontRight_Trig, frontRight_Echo, dist_num_readings), medianDist(backLeft_Trig, backLeft_Echo, dist_num_readings), medianDist(backRight_Trig, backRight_Echo, dist_num_readings) };
 
-  float min_dist = 99999.0;
+  float min_dist = 99999.0;  // sets high value to be overwritten
   for (int i = 0; i < 4; i++) {
     if (distArr[i] < min_dist) {
       min_dist = distArr[i];
@@ -341,6 +357,7 @@ float getMinDist() {
 }
 
 float getMinDistFront() {
+  // gets minimum distance of front 2 ultrasonics
   float distArr[2] = { medianDist(frontLeft_Trig, frontLeft_Echo, dist_num_readings), medianDist(frontRight_Trig, frontRight_Echo, dist_num_readings) };
 
   float min_dist = 99999.0;
@@ -355,6 +372,7 @@ float getMinDistFront() {
 }
 
 float getMinDistBack() {
+  // gets minimum distance of back 2 ultrasonics
   float distArr[2] = { medianDist(backLeft_Trig, backLeft_Echo, dist_num_readings), medianDist(backRight_Trig, backRight_Echo, dist_num_readings) };
 
   float min_dist = 99999.0;
@@ -367,6 +385,7 @@ float getMinDistBack() {
 }
 
 int meanAnalog_mode(int PIN, int numReadings, int numModes) {
+  // Gets mean of the mode to make noise less apparent in the reading of the potentiometer
   float sum = 0;
   for (int i = 0; i < numReadings; i++) {
     sum += float(analogRead(PIN)) / 1023 * numModes;
@@ -374,6 +393,7 @@ int meanAnalog_mode(int PIN, int numReadings, int numModes) {
   return round(sum / numReadings);
 }
 
+// Sets of debug code
 void debug_nav_code() {
   /*
   Serial.println("Distances");
@@ -452,26 +472,29 @@ void debug_servo() {
 }
 
 void get_Vals_serial() {
+  // gets the angle and distance values from Python
   // Need to tell Python script it's ready
   while (!Serial.available()) {
     Serial.println("Arduino Ready");
     delay(20);
   }
+
+  // Gets rid of anything unimportant that was sent to Arduino from Python
   while (Serial.available()) {
-    String incomingString = Serial.readStringUntil('\n');    
+    String incomingString = Serial.readStringUntil('\n');
   }
+
   // https://docs.arduino.cc/language-reference/en/functions/communication/serial/read/
-  while (!Serial.available()) {}
+  while (!Serial.available()) {}  // stays in while loop until there's something available to read
   if (Serial.available() > 0) {
     // read the incoming byte:
     String incomingString = Serial.readStringUntil('\n');
-    // say what you got:
+
     // Ensure transmission in python console
     Serial.print("I received: ");
     Serial.println(incomingString);
 
     // wasn't sure if when there's a transmit error if empty or space with \n, so to be safe:
-
     if (incomingString.length() > 5) {
       // inspired by https://forum.arduino.cc/t/split-string-by-delimiters/373124/6
       int i1 = incomingString.indexOf('\t');            //finds location of first \t
@@ -490,34 +513,36 @@ void get_Vals_serial() {
     // delete incomingString;
     // but Arduino does not support this
   }
-  /*
-  else{
-    Serial.println("Unavailable");
-  }
-  */
 }
 
 void forward(int time) {
+  // moves the robot forward using the motor controller
   oldTime_move = millis();
   digitalWrite(ENA1, HIGH);
   digitalWrite(ENA2, LOW);
   digitalWrite(ENA3, HIGH);
   digitalWrite(ENA4, LOW);
+
+  // stops after time or if distance gets too close
   while (((millis() - oldTime_move) < time) && (getMinDistFront() > dist_threshold)) {}
   stop();
 }
 
 void backward(int time) {
+  // moves the robot backwards using the motor controller
   oldTime_move = millis();
   digitalWrite(ENA1, LOW);
   digitalWrite(ENA2, HIGH);
   digitalWrite(ENA3, LOW);
   digitalWrite(ENA4, HIGH);
+
+  // stops after time or if distance gets too close
   while (((millis() - oldTime_move) < time) && (getMinDistBack() > dist_threshold)) {}
   stop();
 }
 
 void stop() {
+  // stops motors
   digitalWrite(ENA1, LOW);
   digitalWrite(ENA2, LOW);
   digitalWrite(ENA3, LOW);
@@ -525,20 +550,24 @@ void stop() {
 }
 
 void setServo(int angle) {
+  // accidently wrote this backwards at first so angle is reversed
   angle = -angle;
   // Datasheet:
   // https://lonelybinary.com/en-us/products/ds3225mg?srsltid=AfmBOooq_KMl9johkt2W__o180iy3EyvWUtdmS_Bg-ScADnqo5929rpG
+
+  // maps angle to a delay in time for the servo PWM
   int t_control = map(angle, 0, 90, 1500, 2250);
-  oldTime = micros();
+  oldTime = micros(); // get initial time
   while ((micros() - oldTime + t_control) < tPeriod) {
   }
-  digitalWrite(Servo_Pin, HIGH);
-  //Serial.println("High");
+  digitalWrite(Servo_Pin, HIGH); // sets HIGH for t_control time
   while ((micros() - oldTime) < tPeriod) {
   }
+  // sets new time, unimportant here
   oldTime = micros();
+
+  // sets servo pin back low
   digitalWrite(Servo_Pin, LOW);
-  //Serial.println("Low");
 
   // hold program steady to give time for python to calculate new position
   delay(servo_delay);
@@ -549,6 +578,8 @@ void findChessboard() {
   int original_angle = servo_angle;
   int first_angle = servo_angle + search_angle_step;
   int second_angle = servo_angle - search_angle_step;
+
+  // while no image is seeen
   while (distance == -1) {
     // catch boundary conditions to avoid servo damage
     if (first_angle > 90) {
