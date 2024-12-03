@@ -3,11 +3,12 @@
 // Initializing Global Variables (starting with variable values)
 float dist_threshold = 5;
 float dist_num_readings = 4;
-int search_angle_step = 5;  // degrees
-int optim_angle_step = 2;   // degrees
-float roll_threshold = .1;  // radians
-int forward_time_thres = 300; // ms
-int backward_time_thres = 500; // ms
+int search_angle_step = 5;      // degrees
+int optim_angle_step = 2;       // degrees
+float roll_threshold = .1;      // radians
+int forward_time_thres = 300;   // ms
+int backward_time_thres = 500;  // ms
+int servo_delay = 0;
 
 // set important global variables
 float yaw = 0;
@@ -15,6 +16,7 @@ float pitch = 0;
 float roll = 0;
 float distance = -1;
 int servo_angle = 0;  // degrees
+int mode = 0;
 
 // set Pins
 int pot_Pin = A0;
@@ -71,6 +73,10 @@ void loop() {
   // debug_serial_code();
   // setServo(0);
   // debug_movement();
+  //debug_servo();
+  //delay(5000);
+  //setServo(70);
+  //while(1){}
 
   // Implement basic version of optimization/gradient decent in 2D space
   // where the 2D space is that of a linear degree of freedom (robot moves forward or backward)
@@ -111,7 +117,7 @@ void loop() {
 
   // Thus, to further showcase the Processing digital twin (non-normal possibilities) and robustness, I will go for the first method
 
-  while ((distance == -1) || (roll > roll_threshold)) {
+  while ((distance == -1) || abs(roll) > roll_threshold) {
     // Indexed based on order given above, Stationary angle up: 1, Stationary angle steady: 2, etc.
     float rollArr[9];
     float minRoll = 999;
@@ -119,16 +125,15 @@ void loop() {
     int angle_down = servo_angle - optim_angle_step;
     int angle_up = servo_angle + optim_angle_step;
 
-    for (int i = 0; i < 9; i+= 3) {
+    for (int i = 0; i < 9; i += 3) {
       // NOTE: moving on a time basis is not an accurate way of moving the same amount each time due to a variety of factors
       // including battery charge and environmental conditions, but this works for what it needs to do
-      if(i == 3){ //move Forward
+      if (i == 3) {  //move Forward
         forward(forward_time_thres);
-      }
-      else if(i == 6){ // move backward
+      } else if (i == 6) {  // move backward
         backward(backward_time_thres);
       }
-      
+
       // do angle up
       if (angle_up > 90) {
         rollArr[i] = 999;
@@ -139,10 +144,10 @@ void loop() {
         if (distance == -1) {  //if no longer able to see the target
           rollArr[i] = 999;
         } else {
-          if (roll < minRoll) {
-            minRoll = roll;
+          if (abs(roll) < minRoll) {
+            minRoll = abs(roll);
             minIdx = i;
-            rollArr[i] = roll;
+            rollArr[i] = abs(roll);
           }
         }
       }
@@ -153,26 +158,26 @@ void loop() {
       if (distance == -1) {  //if no longer able to see the target
         rollArr[i + 1] = 999;
       } else {
-        if (roll < minRoll) {
-          minRoll = roll;
+        if (abs(roll) < minRoll) {
+          minRoll = abs(roll);
           minIdx = i + 1;
-          rollArr[i + 1] = roll;
+          rollArr[i + 1] = abs(roll);
         }
       }
 
       if (angle_down < 0) {
         rollArr[i + 2] = 999;
-      } // do nothing
-      else{
+      }  // do nothing
+      else {
         setServo(angle_down);
         get_Vals_serial();
         if (distance == -1) {  //if no longer able to see the target
           rollArr[i + 2] = 999;
         } else {
-          if (roll < minRoll) {
-            minRoll = roll;
+          if (abs(roll) < minRoll) {
+            minRoll = abs(roll);
             minIdx = i + 2;
-            rollArr[i + 2] = roll;
+            rollArr[i + 2] = abs(roll);
           }
         }
       }
@@ -180,18 +185,16 @@ void loop() {
 
     // Set the distance to the optimal location
     // Operates under constant time assumption aforementioned which in reality doesn't hold true, but is close enough
-    if(minIdx == 0 || minIdx == 1 || minIdx == 2){ // Finished at back, needs to come to middle
-      forward(backward_time_thres-forward_time_thres);
-    }
-    else if(minIdx == 3 || minIdx == 4 || minIdx == 5){ // Finished at back, needs to come to front
+    if (minIdx == 0 || minIdx == 1 || minIdx == 2) {  // Finished at back, needs to come to middle
+      forward(backward_time_thres - forward_time_thres);
+    } else if (minIdx == 3 || minIdx == 4 || minIdx == 5) {  // Finished at back, needs to come to front
       forward(backward_time_thres);
     }
 
     // Set the angle to the optimal angle
-    if(minIdx == 0 || minIdx == 3 || minIdx == 6){ // New angle is angle up
+    if (minIdx == 0 || minIdx == 3 || minIdx == 6) {  // New angle is angle up
       servo_angle = angle_up;
-    }
-    else if(minIdx == 2 || minIdx == 5 || minIdx == 8){ // New angle is angle down
+    } else if (minIdx == 2 || minIdx == 5 || minIdx == 8) {  // New angle is angle down
       servo_angle = angle_down;
     }
 
@@ -207,14 +210,30 @@ void loop() {
       servo_angle = 90;
     }
 
+    setServo(servo_angle);
+    get_Vals_serial();
+
     // Repears until breaks out of while loop (close enough to normal to the chessboard)
   }
+
+  // temporarily indicate it got within threshold
+  mode = meanAnalog_mode(pot_Pin, 5, 2);
+  setServo(servo_angle);
+  while(mode == 0) {
+    mode = meanAnalog_mode(pot_Pin, 5, 2);
+  }
+
   // If optimized servo angle is below a threshold, move forward until distance threshold
   // This means there are infinite solutions so it makes sense to get as close as possible
+  if(servo_angle < 15){
+    forward(9999); //it will stop once it detects the chessboard
+  }
+  while(mode == 1){
+    mode = meanAnalog_mode(pot_Pin, 5, 2);
+  }
 
-
-
-
+  // This can be commented out to run continously, but wanted to have it stop for the demo
+  while(1){}
 
 
 
@@ -403,8 +422,8 @@ void debug_serial_code() {
   */
 }
 
-void debug_movement(){
-  while(1){
+void debug_movement() {
+  while (1) {
     backward(2000);
     delay(1000);
 
@@ -418,17 +437,34 @@ void debug_movement(){
     //digitalWrite(3, HIGH);
     //digitalWrite(4, HIGH);
     //digitalWrite(5, HIGH);
-
   }
-  
+}
+
+void debug_servo() {
+  int angle = 0;
+  while (1) {
+    if (angle == 90) {
+      angle = 0;
+    }
+    setServo(angle);
+    angle += 1;
+  }
 }
 
 void get_Vals_serial() {
+  // Need to tell Python script it's ready
+  while (!Serial.available()) {
+    Serial.println("Arduino Ready");
+    delay(20);
+  }
+  while (Serial.available()) {
+    String incomingString = Serial.readStringUntil('\n');    
+  }
   // https://docs.arduino.cc/language-reference/en/functions/communication/serial/read/
   while (!Serial.available()) {}
   if (Serial.available() > 0) {
     // read the incoming byte:
-    String incomingString = Serial.readString();
+    String incomingString = Serial.readStringUntil('\n');
     // say what you got:
     // Ensure transmission in python console
     Serial.print("I received: ");
@@ -467,7 +503,7 @@ void forward(int time) {
   digitalWrite(ENA2, LOW);
   digitalWrite(ENA3, HIGH);
   digitalWrite(ENA4, LOW);
-  while(((millis()-oldTime_move) < time) && (getMinDistFront() > dist_threshold)){}
+  while (((millis() - oldTime_move) < time) && (getMinDistFront() > dist_threshold)) {}
   stop();
 }
 
@@ -477,7 +513,7 @@ void backward(int time) {
   digitalWrite(ENA2, HIGH);
   digitalWrite(ENA3, LOW);
   digitalWrite(ENA4, HIGH);
-  while(((millis()-oldTime_move) < time) && (getMinDistBack() > dist_threshold)){}
+  while (((millis() - oldTime_move) < time) && (getMinDistBack() > dist_threshold)) {}
   stop();
 }
 
@@ -493,6 +529,7 @@ void setServo(int angle) {
   // Datasheet:
   // https://lonelybinary.com/en-us/products/ds3225mg?srsltid=AfmBOooq_KMl9johkt2W__o180iy3EyvWUtdmS_Bg-ScADnqo5929rpG
   int t_control = map(angle, 0, 90, 1500, 2250);
+  oldTime = micros();
   while ((micros() - oldTime + t_control) < tPeriod) {
   }
   digitalWrite(Servo_Pin, HIGH);
@@ -502,6 +539,9 @@ void setServo(int angle) {
   oldTime = micros();
   digitalWrite(Servo_Pin, LOW);
   //Serial.println("Low");
+
+  // hold program steady to give time for python to calculate new position
+  delay(servo_delay);
 }
 
 void findChessboard() {
